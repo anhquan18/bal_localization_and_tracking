@@ -1,0 +1,10 @@
+<launch>
+    <node name="strategy_simulator" pkg="robocup_2d_simulator" type="runsimulator.py" output="screen"/>
+    <node name="robot_client" pkg="robocup_2d_simulator" type="test.py" output="screen">
+        <param name="host" type="string" value="0.0.0.0"/>
+        <param name="port" type="int" value="1234"/>
+        <param name="color" type="string" value="blue"/>
+    </node>
+
+    <node name="ball_tracking_algorithm" pkg="robocup_2d_simulator" type="ball_localization_particle_filter.py" output="screen"/>
+</launch>
