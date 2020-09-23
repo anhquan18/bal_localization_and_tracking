@@ -1,11 +1,11 @@
-import rospy
-from geometry_msgs.msg import PoseArray
 import pygame
+import math
 import os
 from pygame.locals import Rect, RLEACCEL,QUIT,MOUSEBUTTONDOWN
 import ui_actions as ua
 import sys
 from mouse_action import MOUSE_ACTION
+from geometry import convert_y_x_to_x_y_axis
 
 # GUI PARAMETER
 VERTICAL  = 700
@@ -51,8 +51,8 @@ black = (0,0,0)
 white = (255,255,255)
 green = (76,153,5)
 gray  = (126,126,126)
-red   = (255,155,155)
-blue  = (155,155,255)
+red   = (255,85,85)
+blue  = (85,85,255)
 orange = (255,153,51)
 red_goal  = (238,36,83)
 blue_goal = (111,28,220)
@@ -71,29 +71,30 @@ class GUI(object):
         self.load_flag = False
         self.mouse = MOUSE_ACTION()
         self.actions = ua.UI_ACTIONS()
-        self.particles_sub = rospy.Subscriber("ball_particles", PoseArray, self.particles_callback)
-        self.particle_poses = []
 
     def update(self):
         self.drawing_field()
         self.drawing_frame()
         self.draw_txt()
         self.show_point(self.red_point,self.blue_point)
-        self.draw_ball_particles()
         self.timer_control(self.frame_count)
         self.event_process()
 
-    def particles_callback(self, msg):
-        self.particle_poses = msg.poses
-
-    def draw_ball_particles(self):
-        for p in self.particle_poses:
+    def draw_ball_particles(self, poses):
+        for p in poses:
             self.draw_circle(((255, 150, 51, 30)),(int(FIELD_ORIGIN[0]+p.position.x), int(FIELD_ORIGIN[1]+p.position.y)),7,0)
+
+    def draw_ball_particles_past_trajectories(self, points):
+        self.draw_lines(red,False,points,7)
+
+    def draw_ball_past_trajectories(self, points):
+        self.draw_lines(black,False,points,7)
 
     def display_player(self, obj):
         if obj.old_color != obj.color:
             obj.old_color = obj.color
             obj.change_color(obj.color)
+        self.draw_arc(gray, (obj.pos[0]-FIELD_SIZE[0]/6, obj.pos[1]-FIELD_SIZE[0]/6), (FIELD_SIZE[0]/3,FIELD_SIZE[0]/3), math.radians(convert_y_x_to_x_y_axis(obj.angle)-50), math.radians(convert_y_x_to_x_y_axis(obj.angle)+50), FIELD_SIZE[0]/6)
         self.screen.blit(obj.img, obj.rect)
 
     def display_ball(self, obj):
@@ -104,6 +105,12 @@ class GUI(object):
 
     def display(self, obj):
         self.screen.blit(obj.img, obj.rect)
+
+    def draw_lines(self,color,closed,points,width):
+        pygame.draw.lines(self.screen,color,closed,points, width)
+
+    def draw_arc(self,color,offset,size,start_angle,stop_angle,width):
+        pygame.draw.arc(self.screen,color,Rect((offset, size)),start_angle,stop_angle, width)
 
     def draw_rect(self,color,offset,size,thickness):
         pygame.draw.rect(self.screen,color,Rect((offset,size)),thickness)

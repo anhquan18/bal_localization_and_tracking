@@ -37,6 +37,13 @@ def convert_to_y_x_axis(ang):
         ang = -270 -ang
     return ang
 
+def convert_y_x_to_x_y_axis(ang):
+    if 0 <= ang <= 180:
+        ang = 180 - ang
+    elif -180 <= ang < 0:
+        ang = 180 - ang
+    return ang
+
 def distance(pos):
     x, y, q = pos
     return math.sqrt(x**2+y**2)

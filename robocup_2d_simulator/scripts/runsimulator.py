@@ -37,11 +37,14 @@ def run():
 
             # update gui
             gui.update()
-            gui.display_ball(ball)
             for player in engine.player_list:
                 player.update(ball)
                 gui.display_player(player)
 
+            gui.draw_ball_particles(ball.particle_poses)
+            gui.draw_ball_particles_past_trajectories(ball.past_particle_avg_poses)
+            gui.draw_ball_past_trajectories(ball.mem_pos_list)
+            gui.display_ball(ball)
             # display update
             pygame.display.update()
     finally:

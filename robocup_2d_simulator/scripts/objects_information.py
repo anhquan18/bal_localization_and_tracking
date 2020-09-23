@@ -1,12 +1,14 @@
-from gui import GUI, FIELD_ORIGIN, FIELD_OFFSET, FIELD_SIZE
+import rospy
 import pygame
 import random
 import math
 import geometry
-from pygame.math import Vector2
 import copy
 import time
 import os
+from geometry_msgs.msg import PoseArray
+from pygame.math import Vector2
+from gui import GUI, FIELD_ORIGIN, FIELD_OFFSET, FIELD_SIZE
 
 CENTER_X, CENTER_Y = FIELD_ORIGIN
 GOALPOST = [(4480,-1300,0), (4480, 1300, 0)]
@@ -23,6 +25,7 @@ class Ball(object):
         self.delta = Vector2(0,-1)
         self.pos = Vector2(CENTER_X, CENTER_Y)
         self.past_pos = Vector2(self.pos[0], self.pos[1])
+        self.mem_pos_list = [self.past_pos, self.past_pos]
         self.angle = 0
         self.vel = 0
 
@@ -34,9 +37,29 @@ class Ball(object):
         self.rect = self.img.get_rect()
         self.rect.center = self.pos
 
+        self.particle_poses = []
+        self.past_particle_avg_poses = [self.past_pos, self.past_pos]
+        self.particles_sub = rospy.Subscriber("ball_particles", PoseArray, self.particles_callback)
+
         # game flag
         self.last_touch = None
         self.last_scored = None
+
+    def particles_callback(self, msg):
+        self.particle_poses = msg.poses
+        mean_x = sum([p.position.x for p in self.particle_poses])/len(self.particle_poses)
+        mean_y = sum([p.position.y for p in self.particle_poses])/len(self.particle_poses)
+        self.check_and_memorize_particle_avg_pos(Vector2(FIELD_ORIGIN[0]+mean_x, FIELD_ORIGIN[1]+mean_y))
+
+    def check_and_memorize_pos(self, pos):
+        if pos != self.mem_pos_list[-1]:
+            self.mem_pos_list.append(pos)
+        if len(self.mem_pos_list)>50: del self.mem_pos_list[0]
+
+    def check_and_memorize_particle_avg_pos(self, pos):
+        if pos != self.past_particle_avg_poses[-1]:
+            self.past_particle_avg_poses.append(pos)
+        if len(self.past_particle_avg_poses)>500: del self.past_particle_avg_poses[0]
 
     def set_pos(self, pos):
         self.pos = Vector2(pos[0], pos[1])
@@ -50,6 +73,7 @@ class Ball(object):
             return (-x,-y,th)
         else:
             return (x,y,th)
+
 
 class Player(object):
     def __init__(self, sock, color=None, ID=None):

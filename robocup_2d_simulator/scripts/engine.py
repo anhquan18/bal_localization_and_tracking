@@ -50,7 +50,7 @@ class Engine(object):
     def publish_information(self):
         information = PoseArray()
 
-        for player in self.data_base.team['red'] + self.data_base.team['blue']:
+        for player in self.data_base.team['blue']:
             player_pose = Pose()
             ball_pose_gl = Pose()
             ball_pose_lc = Pose()
@@ -94,6 +94,7 @@ class Engine(object):
     def update_ball_pos(self):
         self.ball.vel -= 1
         self.ball.past_pos = Vector2(self.ball.pos[0], self.ball.pos[1])
+        self.ball.check_and_memorize_pos(self.ball.past_pos)
 
         if math.fabs(self.ball.vel) <= 1:
             self.ball.vel = 0
