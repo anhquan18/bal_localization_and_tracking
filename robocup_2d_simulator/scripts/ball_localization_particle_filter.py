@@ -68,7 +68,7 @@ class Particle(object):
 
 
 class MotionModel(object):
-    def __init__(self, initial_pose, motion_noise={"xx":0.09, "xy":0.06, "yx":0.07, "yy":0.06}, 
+    def __init__(self, initial_pose, motion_noise={"xx":0.10, "xy":0.10, "yx":0.1, "yy":0.10}, 
                  stuck_time = 1e-10, escape_time = 1e10):
         self.motion_noise_rate_pdf = multivariate_normal(cov = np.diag( [motion_noise["xx"]**2, motion_noise["xy"]**2, 
                                                                         motion_noise["yx"]**2, motion_noise["yy"]**2] )) 
@@ -76,7 +76,7 @@ class MotionModel(object):
         self.escape_pdf = expon(scale = 1/escape_time)
 
         self.initial_pose = initial_pose
-        self.grass_friction_noise = 0.90
+        self.grass_friction_noise = 0.96
         self.prev_vel_x = 1e-100
         self.prev_vel_y = 1e-100
 
@@ -90,7 +90,7 @@ class MotionModel(object):
             vel_x = self.prev_vel_x
             vel_y = self.prev_vel_y
 
-        if abs(vel_x) > 8 or abs(vel_y) > 8:
+        if abs(vel_x) > 1 or abs(vel_y) > 1:
             vel_x , vel_y = self.stuck(vel_x, vel_y, time_interval)
 
             self.prev_vel_x = vel_x * self.grass_friction_noise
@@ -114,13 +114,13 @@ class MotionModel(object):
 
 
 class ObservationModel(object):
-    def __init__(self, static_observation_noise=(0.09, 0.05), dynamic_observation_noise=(0.01, 0.01), 
-                 environment_noise=(0.05, 0.05), observation_bias=(4.5, 0.8)): 
+    def __init__(self, static_observation_noise=(0.05, 0.05), dynamic_observation_noise=(0.01, 0.01), 
+                 environment_noise=(0.01, 0.01), observation_bias=(2.2, 0.3)): 
         self.observation_noise_rate_pdf = multivariate_normal(cov = np.diag( [static_observation_noise[0], static_observation_noise[1], 
                                                                               dynamic_observation_noise[0], dynamic_observation_noise[1]] ))
         self.environment_noise = environment_noise
         self.fast_velo_observation_bias_rate_pdf = norm(loc = observation_bias[0], scale = observation_bias[1])
-        self.slow_velo_observation_bias_rate_pdf = norm(loc = 1.5, scale = 0.6)
+        self.slow_velo_observation_bias_rate_pdf = norm(loc = 1.8, scale = 0.6)
 
     def update(self, ball_lc):
         noise = self.observation_noise_rate_pdf.rvs()
@@ -133,7 +133,7 @@ class ObservationModel(object):
 
 
 class BallParticleFilter(object):
-    def __init__(self, initial_pose, num=20): 
+    def __init__(self, initial_pose, num=17): 
         self.particles = [Particle(initial_pose, 1.0/num, i) for i in range(num)] 
         self.motion_model = MotionModel(initial_pose)
         self.observation_model = ObservationModel()
@@ -156,7 +156,7 @@ class BallParticleFilter(object):
         else:
             r_pos = b_lc = b_gl = vel_x = vel_y = 0
 
-        if b_lc and b_lc[0]<1400 and -45<=math.degrees(math.atan2(b_lc[1], b_lc[0]))<=45:
+        if b_lc and b_lc[0]<2500 and -50<=math.degrees(math.atan2(b_lc[1], b_lc[0]))<=50:
             #m = time.time()
             self.motion_update(0, vel_x, vel_y, self.time_interval)
             #print("Motion time:", time.time() - m)
@@ -191,13 +191,13 @@ class BallParticleFilter(object):
 
     def motion_update(self, use_past_data=0, vel_x=0.0, vel_y=0.0, time_interval=0.1):
         vel_x, vel_y = self.motion_model.update(vel_x, vel_y, use_past_data, time_interval)
-        if vel_x > 80.0 or vel_y > 80.0:
+        if vel_x > 4.0 or vel_y > 4.0:
             motion_bias = self.observation_model.fast_velo_observation_bias_rate_pdf.rvs()
         else:
             motion_bias = self.observation_model.slow_velo_observation_bias_rate_pdf.rvs()
 
         for index, p in enumerate(self.particles):
-            p.motion_update(vel_x*motion_bias, vel_y*(motion_bias-0.4), 
+            p.motion_update(vel_x*motion_bias, vel_y*(motion_bias-0.8), 
                             self.motion_model.motion_noise_rate_pdf.rvs(), index, 
                             self.motion_model.grass_friction_noise, self.motion_model.grass_friction_noise,# b^(xt) = p( xt | xt-1, ut  )
                             time_interval) 

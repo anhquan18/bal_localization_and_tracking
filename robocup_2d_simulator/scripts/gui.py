@@ -51,8 +51,9 @@ black = (0,0,0)
 white = (255,255,255)
 green = (76,153,5)
 gray  = (126,126,126)
-red   = (255,85,85)
-blue  = (85,85,255)
+dark_gray = (50, 50, 50)
+red   = (255,65,65)
+blue  = (65,65,255)
 orange = (255,153,51)
 red_goal  = (238,36,83)
 blue_goal = (111,28,220)
@@ -82,19 +83,19 @@ class GUI(object):
 
     def draw_ball_particles(self, poses):
         for p in poses:
-            self.draw_circle(((255, 150, 51, 30)),(int(FIELD_ORIGIN[0]+p.position.x), int(FIELD_ORIGIN[1]+p.position.y)),7,0)
+            self.draw_circle(((255, 150, 51, 200)),(int(FIELD_ORIGIN[0]+p.position.x), int(FIELD_ORIGIN[1]+p.position.y)),7,0)
 
     def draw_ball_particles_past_trajectories(self, points):
-        self.draw_lines(red,False,points,7)
+        self.draw_lines(red,False,points,8)
 
     def draw_ball_past_trajectories(self, points):
-        self.draw_lines(black,False,points,7)
+        self.draw_lines(black,False,points,8)
 
     def display_player(self, obj):
         if obj.old_color != obj.color:
             obj.old_color = obj.color
             obj.change_color(obj.color)
-        self.draw_arc(gray, (obj.pos[0]-FIELD_SIZE[0]/6, obj.pos[1]-FIELD_SIZE[0]/6), (FIELD_SIZE[0]/3,FIELD_SIZE[0]/3), math.radians(convert_y_x_to_x_y_axis(obj.angle)-50), math.radians(convert_y_x_to_x_y_axis(obj.angle)+50), FIELD_SIZE[0]/6)
+        self.draw_arc(gray, (obj.pos[0]-FIELD_SIZE[0]/4, obj.pos[1]-FIELD_SIZE[0]/4), (FIELD_SIZE[0]/2,FIELD_SIZE[0]/2), math.radians(convert_y_x_to_x_y_axis(obj.angle)-50), math.radians(convert_y_x_to_x_y_axis(obj.angle)+50), FIELD_SIZE[0]/4)
         self.screen.blit(obj.img, obj.rect)
 
     def display_ball(self, obj):
