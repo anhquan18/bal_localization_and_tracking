@@ -6,5 +6,6 @@
         <param name="color" type="string" value="blue"/>
     </node>
 
+    <node name="ball_partial_memory" pkg="robocup_2d_simulator" type="ball_memory.py" output="screen"/>
     <node name="ball_tracking_algorithm" pkg="robocup_2d_simulator" type="ball_localization_particle_filter.py" output="screen"/>
 </launch>

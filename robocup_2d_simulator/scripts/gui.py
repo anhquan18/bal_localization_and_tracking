@@ -95,7 +95,8 @@ class GUI(object):
         if obj.old_color != obj.color:
             obj.old_color = obj.color
             obj.change_color(obj.color)
-        self.draw_arc(gray, (obj.pos[0]-FIELD_SIZE[0]/4, obj.pos[1]-FIELD_SIZE[0]/4), (FIELD_SIZE[0]/2,FIELD_SIZE[0]/2), math.radians(convert_y_x_to_x_y_axis(obj.angle)-50), math.radians(convert_y_x_to_x_y_axis(obj.angle)+50), FIELD_SIZE[0]/4)
+        if obj.color == "blue":
+            self.draw_arc(gray, (obj.pos[0]-FIELD_SIZE[0]/4, obj.pos[1]-FIELD_SIZE[0]/4), (FIELD_SIZE[0]/2,FIELD_SIZE[0]/2), math.radians(convert_y_x_to_x_y_axis(obj.angle)-50), math.radians(convert_y_x_to_x_y_axis(obj.angle)+50), FIELD_SIZE[0]/4)
         self.screen.blit(obj.img, obj.rect)
 
     def display_ball(self, obj):

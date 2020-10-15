@@ -65,6 +65,9 @@ class Engine(object):
             ball_pose_lc.position.x, ball_pose_lc.position.y, _ = ball_lc
 
             information.poses = [player_pose, ball_pose_gl, ball_pose_lc, ball_velo]
+            if ball_velo.position.x !=0 or ball_velo.position.y !=0:
+                #print("engine:", ball_velo.position.x, ball_velo.position.y)
+                pass
             self.pub.publish(information)
 
     # DEBUG ONLY

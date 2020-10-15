@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import rospy
 from geometry_msgs.msg import PoseArray, Pose
+from std_msgs.msg import Bool
 import math
 import time
 import numpy as np
 import copy
+import random
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal, expon, norm
 
@@ -17,6 +19,10 @@ def rotation2d(pos, dq):
     q2 = q + dq
 
     return (x2, y2, q2)
+
+
+def g_normal_random_equation(loc, scale, val):
+    return (1/(scale*math.sqrt(2*3.14159))) * (2.71828**(-((val-loc)**2)/(2*scale**2)))
 
 
 def normalize_rad(ang):                                                         
@@ -47,7 +53,7 @@ class Particle(object):
         self._id = _id
         self.weight = weight
 
-    def motion_update(self, vel_x, vel_y, noise, p_id, grass_friction_noise_x, grass_friction_noise_y, time_interval):
+    def motion_update(self, vel_x, vel_y, noise=[0.0,0.0,0.0,0.0], p_id=0, grass_friction_noise_x=0.9, grass_friction_noise_y=0.9, time_interval=0.1):
         self.prev_pose = self.pose
 
         vel_x = (vel_x + noise[0]*1000*math.sqrt(abs(vel_x) * time_interval) + noise[1]*1000*math.sqrt(abs(vel_y) * time_interval)) * grass_friction_noise_x
@@ -60,15 +66,16 @@ class Particle(object):
         self.pose = x, y, theta
         #print(self.pose)
 
-    def observation_update(self, observation, robot_pose, noise):
+    def observation_update(self, observation, ball_gl, robot_pose, noise):
         particle_relative_pos = coord_trans_global_to_local(robot_pose, self.pose)
-        self.weight *= multivariate_normal( mean=observation, cov=np.diag(noise) ).pdf((particle_relative_pos[0], particle_relative_pos[1]))
-        self.weight *= multivariate_normal( mean=self.pose[:2], cov=np.diag(noise) ).pdf((particle_relative_pos[0], particle_relative_pos[1]))
-        #print("Particle relative pose:", particle_relative_pos, "Ball_lc", observation)
+        #self.weight *= multivariate_normal( mean=observation, cov=np.diag(noise) ).pdf((particle_relative_pos[0], particle_relative_pos[1]))
+        #self.weight *= multivariate_normal( mean=self.pose[:2], cov=np.diag(noise) ).pdf((particle_relative_pos[0], particle_relative_pos[1]))
+        self.weight *= (g_normal_random_equation(observation[0],noise[0],particle_relative_pos[0]) * g_normal_random_equation(observation[1],noise[1],particle_relative_pos[1]))
+        self.weight *= (g_normal_random_equation(ball_gl[0],noise[0],self.pose[0]) * g_normal_random_equation(ball_gl[1],noise[1],self.pose[1]))
 
 
 class MotionModel(object):
-    def __init__(self, initial_pose, motion_noise={"xx":0.10, "xy":0.10, "yx":0.1, "yy":0.10}, 
+    def __init__(self, initial_pose, motion_noise={"xx":0.12, "xy":0.11, "yx":0.1, "yy":0.09}, 
                  stuck_time = 1e-10, escape_time = 1e10):
         self.motion_noise_rate_pdf = multivariate_normal(cov = np.diag( [motion_noise["xx"]**2, motion_noise["xy"]**2, 
                                                                         motion_noise["yx"]**2, motion_noise["yy"]**2] )) 
@@ -76,7 +83,7 @@ class MotionModel(object):
         self.escape_pdf = expon(scale = 1/escape_time)
 
         self.initial_pose = initial_pose
-        self.grass_friction_noise = 0.96
+        self.grass_friction_noise = 0.90
         self.prev_vel_x = 1e-100
         self.prev_vel_y = 1e-100
 
@@ -91,8 +98,7 @@ class MotionModel(object):
             vel_y = self.prev_vel_y
 
         if abs(vel_x) > 1 or abs(vel_y) > 1:
-            vel_x , vel_y = self.stuck(vel_x, vel_y, time_interval)
-
+            #vel_x , vel_y = self.stuck(vel_x, vel_y, time_interval)
             self.prev_vel_x = vel_x * self.grass_friction_noise
             self.prev_vel_y = vel_y * self.grass_friction_noise
         else:
@@ -115,12 +121,12 @@ class MotionModel(object):
 
 class ObservationModel(object):
     def __init__(self, static_observation_noise=(0.05, 0.05), dynamic_observation_noise=(0.01, 0.01), 
-                 environment_noise=(0.01, 0.01), observation_bias=(2.2, 0.3)): 
+                 environment_noise=(0.01, 0.01), observation_bias=(1.2, 0.2)): 
         self.observation_noise_rate_pdf = multivariate_normal(cov = np.diag( [static_observation_noise[0], static_observation_noise[1], 
                                                                               dynamic_observation_noise[0], dynamic_observation_noise[1]] ))
         self.environment_noise = environment_noise
         self.fast_velo_observation_bias_rate_pdf = norm(loc = observation_bias[0], scale = observation_bias[1])
-        self.slow_velo_observation_bias_rate_pdf = norm(loc = 1.8, scale = 0.6)
+        #self.slow_velo_observation_bias_rate_pdf = norm(loc = 1.8, scale = 0.6)
 
     def update(self, ball_lc):
         noise = self.observation_noise_rate_pdf.rvs()
@@ -133,41 +139,56 @@ class ObservationModel(object):
 
 
 class BallParticleFilter(object):
-    def __init__(self, initial_pose, num=17): 
-        self.particles = [Particle(initial_pose, 1.0/num, i) for i in range(num)] 
+    def __init__(self, initial_pose, num=200): 
+        self.particles = [Particle(initial_pose, 1.0/num, i) for i in range(num)] # test
         self.motion_model = MotionModel(initial_pose)
         self.observation_model = ObservationModel()
-        self.sub = rospy.Subscriber('robot_ball_information', PoseArray, self.callbackk_ball_information)
-        self.pub = rospy.Publisher('ball_particles', PoseArray, queue_size=10)
-        self.time_interval = self.calculate_motion_update_time()
+        self.memo_sub = rospy.Subscriber("ball_memories", PoseArray, self.callbackk_ball_memories)
+        #self.sub = rospy.Subscriber("robot_ball_information", PoseArray, self.callbackk_ball_information)
+        self.pub = rospy.Publisher("ball_particles", PoseArray, queue_size=4)
+        self.status_pub = rospy.Publisher("compution_status", Bool, queue_size=1)
+        #self.time_interval = self.calculate_motion_update_time()
+        self.time_interval = 0.1
         self.data = []
+        self._data = []
 
     #------------------------ Particle Filter ------------------------
     #----- State transition: b(x) = p( x=xt | x0, u1->t, z1->t ) -----
     def update(self):
-        if self.data:
-            d = self.data.pop(0)
+        if self._data:
+            d = self._data.pop(0)
             start = time.time()
             r_pos = (d[0].position.x, d[0].position.y, d[0].position.z)
             b_gl = (d[1].position.x, d[1].position.y, 0.0)
             b_lc = (d[2].position.x, d[2].position.y, 0.0)
             vel_x, vel_y = d[3].position.x, d[3].position.y
             print(r_pos, b_gl, b_lc, vel_x, vel_y)
+            #print("tracking:", vel_x, vel_y)
         else:
             r_pos = b_lc = b_gl = vel_x = vel_y = 0
 
-        if b_lc and b_lc[0]<2500 and -50<=math.degrees(math.atan2(b_lc[1], b_lc[0]))<=50:
-            #m = time.time()
+        status = Bool()
+        status.data = False
+        self.status_pub.publish(status)
+
+        if b_lc and b_lc[0]<3000 and -50<=math.degrees(math.atan2(b_lc[1], b_lc[0]))<=50:
+            m=time.time()
             self.motion_update(0, vel_x, vel_y, self.time_interval)
-            #print("Motion time:", time.time() - m)
-            #c = time.time()
-            self.observation_update(r_pos, b_lc)
-            #print("Ob_update_time:", time.time() - c)
-            #self.resampling()
+            print("motion:", time.time() -m)
+            o=time.time()
+            self.observation_update(r_pos, b_lc, b_gl)
+            print("observ:", time.time() -o)
+            r=time.time()
+            self.resampling()
+            print("resampl:", time.time() -r)
         else: # Ball out of sight
             self.motion_update(1)
 
         self.publish_particles()
+
+        status = Bool()
+        status.data = True
+        self.status_pub.publish(status)
 
         #print("Time:", time.time() - start)
 
@@ -180,6 +201,10 @@ class BallParticleFilter(object):
             particle_poses.poses.append(pos)
         self.pub.publish(particle_poses)
 
+    def callbackk_ball_memories(self, msgs):
+        if len(msgs.poses) == 4:
+            self._data.append(msgs.poses)
+
     def callbackk_ball_information(self, msgs):
         if len(msgs.poses) == 4:
             self.data.append(msgs.poses)
@@ -191,24 +216,30 @@ class BallParticleFilter(object):
 
     def motion_update(self, use_past_data=0, vel_x=0.0, vel_y=0.0, time_interval=0.1):
         vel_x, vel_y = self.motion_model.update(vel_x, vel_y, use_past_data, time_interval)
-        if vel_x > 4.0 or vel_y > 4.0:
-            motion_bias = self.observation_model.fast_velo_observation_bias_rate_pdf.rvs()
-        else:
-            motion_bias = self.observation_model.slow_velo_observation_bias_rate_pdf.rvs()
+        #if abs(vel_x) > 8.0 or abs(vel_y) > 8.0:
+        #    motion_bias = self.observation_model.fast_velo_observation_bias_rate_pdf.rvs()
+        #else:
+        ##    motion_bias = self.observation_model.slow_velo_observation_bias_rate_pdf.rvs()
+        motion_bias = self.observation_model.fast_velo_observation_bias_rate_pdf.rvs()
+        #print (vel_x, vel_y)
 
         for index, p in enumerate(self.particles):
-            p.motion_update(vel_x*motion_bias, vel_y*(motion_bias-0.8), 
-                            self.motion_model.motion_noise_rate_pdf.rvs(), index, 
+            #p.motion_update(vel_x*motion_bias, vel_y*(motion_bias-0.7), 
+            #                self.motion_model.motion_noise_rate_pdf.rvs(), index, 
+            #                self.motion_model.grass_friction_noise, self.motion_model.grass_friction_noise,# b^(xt) = p( xt | xt-1, ut  )
+            #                time_interval) 
+            p.motion_update(vel_x*motion_bias, vel_y*motion_bias, 
+                            [random.uniform(-0.10, 0.10), random.uniform(-0.11, 0.11),random.uniform(-0.11, 0.11),random.uniform(-0.11, 0.11)], index, 
                             self.motion_model.grass_friction_noise, self.motion_model.grass_friction_noise,# b^(xt) = p( xt | xt-1, ut  )
                             time_interval) 
 
-    def observation_update(self, robot_pose, ball_lc):
+    def observation_update(self, robot_pose, ball_lc, ball_gl):
         ball_lc = self.observation_model.update(ball_lc)
         ball_lc = mili_to_meter(ball_lc[0]), mili_to_meter(ball_lc[1])
         robot_pose = mili_to_meter(robot_pose[0]), mili_to_meter(robot_pose[1]), robot_pose[2]
 
         for index, p in enumerate(self.particles):
-            p.observation_update(ball_lc, robot_pose, 
+            p.observation_update(ball_lc, ball_gl, robot_pose, 
                                   [(self.observation_model.environment_noise[0])**2, 
                                    (self.observation_model.environment_noise[1])**2])
             #print(index, p.pose[:2], " Weight:", p.weight)
@@ -224,7 +255,8 @@ class BallParticleFilter(object):
         if weight_list[-1] < 1e-100: weight_list = [e + 1e-100 for e in weight_list] #make sure weight is not 0 
         
         step = weight_list[-1]/len(self.particles)
-        r = np.random.uniform(0.0, step)
+        #r = np.random.uniform(0.0, step)
+        r = random.uniform(0.0, step)
         cur_pos = 0
         ps = []
 
