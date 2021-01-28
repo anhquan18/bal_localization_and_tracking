@@ -64,7 +64,6 @@ class Particle(object):
         theta = math.atan2(vel_y, vel_x)
 
         self.pose = x, y, theta
-        #print(self.pose)
 
     def observation_update(self, observation, ball_gl, robot_pose, noise):
         particle_relative_pos = coord_trans_global_to_local(robot_pose, self.pose)
@@ -139,8 +138,9 @@ class ObservationModel(object):
 
 
 class BallParticleFilter(object):
-    def __init__(self, initial_pose, num=200): 
+    def __init__(self, initial_pose, num=550): 
         self.particles = [Particle(initial_pose, 1.0/num, i) for i in range(num)] # test
+        self.num = num
         self.motion_model = MotionModel(initial_pose)
         self.observation_model = ObservationModel()
         self.memo_sub = rospy.Subscriber("ball_memories", PoseArray, self.callbackk_ball_memories)
@@ -155,15 +155,21 @@ class BallParticleFilter(object):
     #------------------------ Particle Filter ------------------------
     #----- State transition: b(x) = p( x=xt | x0, u1->t, z1->t ) -----
     def update(self):
+        start = time.time()
+
         if self._data:
             d = self._data.pop(0)
-            start = time.time()
             r_pos = (d[0].position.x, d[0].position.y, d[0].position.z)
             b_gl = (d[1].position.x, d[1].position.y, 0.0)
             b_lc = (d[2].position.x, d[2].position.y, 0.0)
             vel_x, vel_y = d[3].position.x, d[3].position.y
-            print(r_pos, b_gl, b_lc, vel_x, vel_y)
+            #print(r_pos, b_gl, b_lc, vel_x, vel_y)
+            #print( b_gl, b_lc)
             #print("tracking:", vel_x, vel_y)
+
+            particle_avg_pos = self.get_ball_avg_pos()
+            #print(particle_avg_pos)
+            print("ball abs error:", abs(abs(particle_avg_pos[0]) - abs(b_gl[0])), abs(abs(particle_avg_pos[1]) - abs(b_gl[1])))
         else:
             r_pos = b_lc = b_gl = vel_x = vel_y = 0
 
@@ -174,13 +180,13 @@ class BallParticleFilter(object):
         if b_lc and b_lc[0]<3000 and -50<=math.degrees(math.atan2(b_lc[1], b_lc[0]))<=50:
             m=time.time()
             self.motion_update(0, vel_x, vel_y, self.time_interval)
-            print("motion:", time.time() -m)
+            #print("motion:", time.time() -m)
             o=time.time()
             self.observation_update(r_pos, b_lc, b_gl)
-            print("observ:", time.time() -o)
+            #print("observ:", time.time() -o)
             r=time.time()
-            self.resampling()
-            print("resampl:", time.time() -r)
+            #self.resampling()
+            #print("resampl:", time.time() -r)
         else: # Ball out of sight
             self.motion_update(1)
 
@@ -189,8 +195,7 @@ class BallParticleFilter(object):
         status = Bool()
         status.data = True
         self.status_pub.publish(status)
-
-        #print("Time:", time.time() - start)
+        print("Time:", time.time() - start)
 
     def publish_particles(self):
         particle_poses = PoseArray()
@@ -220,7 +225,8 @@ class BallParticleFilter(object):
         #    motion_bias = self.observation_model.fast_velo_observation_bias_rate_pdf.rvs()
         #else:
         ##    motion_bias = self.observation_model.slow_velo_observation_bias_rate_pdf.rvs()
-        motion_bias = self.observation_model.fast_velo_observation_bias_rate_pdf.rvs()
+        #motion_bias = self.observation_model.fast_velo_observation_bias_rate_pdf.rvs()
+        motion_bias = random.uniform(1.3, 1.5)
         #print (vel_x, vel_y)
 
         for index, p in enumerate(self.particles):
@@ -246,9 +252,9 @@ class BallParticleFilter(object):
 
     def get_ball_avg_pos(self):
         sum_pose = (0.0, 0.0)
-        for p in self.particles[:10]:
+        for p in self.particles:
             sum_pose = sum_pose[0] + p.pose[0], sum_pose[1] + p.pose[1]
-        return sum_pose[0]/10.0, sum_pose[1]/10.0 # estimate ball average pose from 10 particles with highest weight
+        return (sum_pose[0]/self.num), (sum_pose[1]/self.num), 0.0 # estimate ball average pose from all particles 
 
     def resampling(self): #systemmatic sampling
         weight_list = np.cumsum([p.weight for p in self.particles]) # create weight list
