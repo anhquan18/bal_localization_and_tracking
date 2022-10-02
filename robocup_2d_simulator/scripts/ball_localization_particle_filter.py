@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import rospy
 from geometry_msgs.msg import PoseArray, Pose
 from std_msgs.msg import Bool
@@ -169,7 +170,7 @@ class BallParticleFilter(object):
 
             particle_avg_pos = self.get_ball_avg_pos()
             #print(particle_avg_pos)
-            print("ball abs error:", abs(abs(particle_avg_pos[0]) - abs(b_gl[0])), abs(abs(particle_avg_pos[1]) - abs(b_gl[1])))
+            #print("ball abs error:", abs(abs(particle_avg_pos[0]) - abs(b_gl[0])), abs(abs(particle_avg_pos[1]) - abs(b_gl[1])))
         else:
             r_pos = b_lc = b_gl = vel_x = vel_y = 0
 
@@ -195,7 +196,7 @@ class BallParticleFilter(object):
         status = Bool()
         status.data = True
         self.status_pub.publish(status)
-        print("Time:", time.time() - start)
+        #print("calculation time:", time.time() - start)
 
     def publish_particles(self):
         particle_poses = PoseArray()

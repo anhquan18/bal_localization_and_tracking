@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import rospy
 import time
 from geometry_msgs.msg import PoseArray
@@ -15,12 +16,13 @@ class Memory(object):
 
     def callbackk_ball_information(self, msgs):
         #if len(msgs.poses) == 4 and (msgs.poses[3].position.x!=0.0 or msgs.poses[3].position.y!=0.0):
+        print(msgs.poses)
+        print(len(msgs.poses))
         if len(msgs.poses) == 4:
             self.data.append(msgs)
             #print("memory:", self.data[0].poses[3].position.x, self.data[0].poses[3].position.y, "time", rospy.get_time())
 
     def callbackk_compution_status(self, msg):
-        #print("memory size:", len(self.data), "status:", msg.data)
         if msg.data and len(self.data):
             self.past_status = msg.data
             self.memo_pub.publish(self.data.pop(0))

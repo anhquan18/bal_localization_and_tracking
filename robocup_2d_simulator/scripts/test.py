@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import rospy
 import socket, select, string, sys, time, random
 import pygame
@@ -40,8 +41,9 @@ if __name__ == "__main__":
 
     try:
         while True:
-            s.send(request_access)
+            s.send(bytes(request_access, "utf-8")) # string type to bytes for sending
             permission = s.recv(16)
+            permission = permission.decode("utf-8")
             if permission[0:7] == 'granted': # remove unnecessary mixed data caused when transfering
                 break
             time.sleep(0.1)
@@ -66,7 +68,7 @@ if __name__ == "__main__":
             if p[pygame.K_n]: player.state = 'n'
             
             data = player.return_data()
-            s.send(data)
+            s.send(bytes(data, "utf-8"))
 
             try:
                 data = s.recv(16)
@@ -74,6 +76,8 @@ if __name__ == "__main__":
                 print ("socket timeout")
                 data = ''
             
+            data = data.decode("utf-8")
+            #print(data)
             player.handle_data(data)
             
             
@@ -88,7 +92,7 @@ if __name__ == "__main__":
                 screen.blit(font.render('MODE: Automatic', font_clearly,black), (50,80))
                 screen.blit(font.render('Press n for Manual MODE', font_clearly,black), (50,130))
     except Exception as e:
-        print "Error:", e
+        print ("Error:", e)
     finally:
-        s.send("KILL")
+        s.send(bytes("KILL", "utf-8"))
         s.close()

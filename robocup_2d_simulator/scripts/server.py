@@ -37,7 +37,9 @@ class Server(object):
                 # handle player data
                 try:
                     # get player data
-                    data = sock.recv(self.recv_buffer)
+                    data = sock.recv(self.recv_buffer) 
+                    # bytes to string
+                    data = data.decode("utf-8")
                     if data:
                         if "KILL" in data:
                             print("player exit")
@@ -70,7 +72,7 @@ class Server(object):
             self.data_base.player_list.remove(player)
             raise ValueError("Usage: Can't have more " + color +" player")
         elif rand_id in self.data_base.robots_random_id: # debug duplicate player
-            player.sock.send('granted')
+            player.sock.send(bytes('granted', "utf-8"))
             return
         else:
             ID_list = range(4)
@@ -80,7 +82,7 @@ class Server(object):
             player.ID = ID_list[0]
             self.data_base.update_new_player(player)
             self.data_base.robots_random_id.append(rand_id)
-            player.sock.send('granted')
+            player.sock.send(bytes('granted', "utf-8"))
 
     def recv_data(self, player, data):
         data = data.split(",")
@@ -106,7 +108,7 @@ class Server(object):
 
         data = str(ball_dist)
         
-        sock.send(data)
+        sock.send(bytes(data, "utf-8"))
 
     def broadcast_data(self, sock, data):
         for socket in self.connection_list:

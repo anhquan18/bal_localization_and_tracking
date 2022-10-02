@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import rospy
 import pygame
 from gui import frame_rate, GUI
